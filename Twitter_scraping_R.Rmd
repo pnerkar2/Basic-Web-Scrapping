@@ -1,0 +1,229 @@
+---
+title: "Scrape Twitter Data"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+
+### 📌 Things to check
+
+- ✔️ You must have a Twitter Developer account with elevated access.
+- ✔️ You must have the following keys/tokens:
+  1. API Key
+  2. API Key Secret
+  3. Access Token
+  4. Access Token Secret
+- ✔️ You must use `rtweet` version 1.x.x. Using an older version may display warning messages or throw an error as many functions are deprecated.
+
+
+
+## 📦 Install and load packages
+
+Install `tidyverse` and `rtweet` if you do not have them in your R environment.
+
+```{r message=FALSE, warning=FALSE}
+# uncomment and run the lines below if you need to install these packages
+
+# tidyverse is a collection of R packages for data science
+# install.packages("tidyverse")
+
+# rtweet is used to pull tweets using your own account
+# install.packages("rtweet")
+
+# igraph is a collection of network analysis tools
+# install.packages("igraph")
+```
+
+Load packages.
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(rtweet)
+library(igraph)
+```
+
+
+## 🔑 Authenticate Twitter Using API Keys
+
+The `rtweet` package provides three methods of authentication. This example authenticates as a bot, but the other two methods will work as well unless you're planning to take actions on Twitter using the API (e.g., posting a tweet through API).
+
+```{r}
+# credentials required to generate an API token
+# replace with your own keys and tokens
+api_key <- "...Your API Key..."
+api_key_secret <- "...Your API Key Secret..."
+access_token <- "...Your API Access Token..."
+access_token_secret <-  "...Your API Access Token Secret..."
+
+# create an authentication token a as a Twitter bot
+auth_token = rtweet_bot(
+  api_key = api_key,
+  api_secret = api_key_secret,
+  access_token = access_token,
+  access_secret = access_token_secret
+)
+
+# print out token details
+auth_token
+```
+
+Configure `rtweet` to use the token generated in the previous step.
+
+```{r}
+# use token authentication
+auth_as(auth_token)
+```
+
+
+### 👉 What are tokens?
+
+You can think of API tokens as an access key card. Twitter will use the token to check whether your user credential is valid (authentication) and whether you have permission to perform an action (authorization).
+
+
+
+
+## 🔍 Search tweets
+
+Use the `search_tweets()` to search by keyword, hashtags, or mentions.
+
+```{r}
+# search term
+# can be a hashtag (e.g., #microsoft), a mention (e.g., @nike), or a keyword (e.g., iphone)
+search_term = "iphone"
+
+# search tweets
+# we specify lang = "en" to retrieve only English tweets
+searched_tweets <- search_tweets(
+  search_term,
+  n = 4000,
+  include_rts = FALSE,
+  parse = TRUE,
+  lang = "en"
+)
+
+# the result is stored as a tibble
+searched_tweets %>% head(20)
+```
+
+Check the number of returned tweets. Ideally, you should have sufficient number of rows (minimum ~500). If you see a smaller number, try a different search term.
+
+```{r}
+nrow(searched_tweets)
+```
+
+
+
+### ✂️ Select only relevant columns from `searched_tweets`
+
+Use `ncol()` to find out how many columns the `search_tweets()` method returns.
+
+```{r}
+ncol(searched_tweets)
+```
+
+We can see the column names using `colnames()`.
+
+```{r}
+colnames(searched_tweets)
+```
+
+
+
+```{r}
+tweets_subset_columns <- searched_tweets %>% 
+  select(full_text, retweet_count, favorite_count, created_at)
+
+tweets_subset_columns %>% head()
+```
+
+
+
+## 🧑 Query user information
+
+The `search_tweets()` method returns a unique `id` of the user, not the name or screen name. This is because screen names can change and is not guaranteed to be consistent.
+
+In this step, we query the user data using `rtweet::users_data()`. `rtweet::users_data()` will retrieve users' information for each row in `searched_tweets`.
+
+```{r}
+searched_tweets_user_data = users_data(searched_tweets)
+searched_tweets_user_data %>% head(20)
+```
+
+
+
+### ✂️ Select only relevant columns from `searched_tweets`
+
+How many columns does the `users_data()` method return? Like we did in one of the previous steps, we can find out using the `ncol()` function.
+
+```{r}
+ncol(searched_tweets_user_data)
+```
+
+We can see the column names using `colnames()`.
+
+```{r}
+colnames(searched_tweets_user_data)
+```
+
+Select only relevant columns.
+
+```{r}
+users_subset_columns <- searched_tweets_user_data %>% 
+  select(
+    name,
+    screen_name,
+    description,
+    followers_count,
+    friends_count,
+    listed_count
+  )
+
+users_subset_columns %>% head(20)
+```
+
+
+
+## ⚒️ Combine tweets and users data
+
+We now have two different DataFrames - one with a list of tweets and another with users information.
+
+Use `dplyr` to bind the two DataFrames together.
+
+```{r}
+searched_tweets_with_users <- dplyr::bind_cols(
+  tweets_subset_columns,
+  users_subset_columns
+)
+
+searched_tweets_with_users %>% head(20)
+```
+
+
+
+## 💾 (Optional) Save to a CSV file
+
+Use `readr` package's `readr::write_csv()` to save your combined DataFrame to a CSV file. This can be useful if you want to browse through the tweets using a spreadsheet software (e.g., Excel, Google Sheets).
+
+Note that `rtweet` provides its own `rtweet:write_as_csv()` function which performs a similar task. You can use either.
+
+
+```{r}
+readr::write_csv(
+  searched_tweets_with_users,
+  "tweets.csv"
+)
+```
+
+
+
+### ✏️ Create an alias
+
+Create an alias for our combined DataFrame. This is for convenience so that we do not have to type `searched_tweets_with_users` every time.
+
+```{r}
+tweets <- searched_tweets_with_users
+```
+
+
